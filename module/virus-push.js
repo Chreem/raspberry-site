@@ -1,9 +1,22 @@
 const getHtml = require('../service/get-html')
     , moment = require('moment')
+    , cheerio = require('cheerio')
     , Timer = require('../service/timer')
     , sendEmail = require('../service/send-email')
     ;
 
+
+const parseHtmlString = str => {
+    const $ = cheerio.load(str);
+    const window = {};
+    try {
+        const getTimelineService = $('#getTimelineService');
+        eval(getTimelineService.html());
+        const getStatisticsService = $('#getStatisticsService');
+        eval(getStatisticsService.html());
+    } catch (e) { }
+    return window;
+}
 
 const formatContent = ({ title, summary, infoSource, sourceUrl, pubDate }, { countRemark, imgUrl }) => {
     // id: 102
@@ -33,18 +46,20 @@ module.exports = () => {
     const timer = new Timer({ apm: 10, ipm: 10, normalCallback: true });
     timer.startListen(async () => {
         const len = news.length;
-        const result = await getHtml('https://3g.dxy.cn/newh5/view/pneumonia');
+        const resultStr = await getHtml('https://3g.dxy.cn/newh5/view/pneumonia');
+        const result = parseHtmlString(resultStr);
+
         const gettedNews = result.getTimelineService.result;
         gettedNews.map(item => {
             const newsItem = news.filter(i => i.id === item.id)[0];
             if (!newsItem) news.push(item);
         });
         const newLen = gettedNews.length;
+        const newest = gettedNews[0];
         if (newLen <= len) return;
 
 
         try {
-            const newest = gettedNews[0];
             await sendEmail({
                 from: '病情推送',
                 receiver: ['chreem@qq.com'],
@@ -52,7 +67,8 @@ module.exports = () => {
                 body: formatContent(newest, result.getStatisticsService)
             });
         } catch (e) {
-            console.log(e.toString());
+            // console.log(e.toString());
         }
+        console.log('已发送');
     });
 };
